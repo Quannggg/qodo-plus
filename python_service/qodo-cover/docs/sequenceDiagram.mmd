@@ -1,0 +1,97 @@
+sequenceDiagram
+    participant U as User
+    participant M as main.py (CLI)
+    participant CA as CoverAgent
+    participant UTV as UnitTestValidator
+    participant UTG as UnitTestGenerator
+    participant CP as CoverageProcessor
+    participant R as Runner
+    participant AC as AgentCompletion (DefaultAgentCompletion)
+    participant AI as AICaller (LLM)
+    participant DB as UnitTestDB
+    participant RG as ReportGenerator
+
+    U->>M: python cover_agent/main.py [args]
+    M->>CA: parse_args() <br/> → new CoverAgent(args)
+
+    CA->>CA: _validate_paths()
+    CA->>CA: _duplicate_test_file()
+    CA->>CA: parse_command_to_run_only_a_single_test()
+
+    note over CA: Creates supporting objects
+    CA->>UTG: new UnitTestGenerator(...)
+    CA->>UTV: new UnitTestValidator(max_fix_attempts)
+
+    CA->>CA: run()
+
+    note over CA: init()
+    CA->>UTV: initial_test_suite_analysis()
+    UTV->>AC: analyze_suite_test_headers_indentation(...)
+    AC->>AI: call_model()
+    AI-->>AC: returns analysis response (YAML)
+    AC-->>UTV: indentation & other info
+
+    UTV->>AC: analyze_test_insert_line(...)
+    AC->>AI: call_model()
+    AI-->>AC: returns insert-line info (YAML)
+    AC-->>UTV: line numbers to insert tests/imports
+
+    note over UTV: store indentation<br/>and insertion lines
+
+    UTV->>UTV: get_coverage()
+    UTV->>UTV: run_coverage()
+    UTV->>R: run_command(test_command)
+    R-->>UTV: stdout, stderr, exit_code, time_of_test
+    UTV->>CP: process_coverage_report(time_of_test)
+    CP-->>UTV: coverage lines + coverage pct
+
+    note over CA: Loop until coverage >= desired or<br/>we reach max iterations
+    CA->>UTG: generate_tests()
+
+    UTG->>AC: generate_tests(...)
+    AC->>AI: call_model()
+    AI-->>AC: returns new tests (YAML)
+    AC-->>UTG: parse new_tests[]
+
+    loop For each new test
+        CA->>UTV: validate_test(new_test)
+        loop Retry Attempt (0 to max_fix_attempts)
+            UTV->>UTV: Write/Update Test File
+            UTV->>R: run_command(test_command)
+            R-->>UTV: returns exit_code, stderr, stdout
+            alt Test Passed (exit_code == 0)
+                Note over UTV: Test OK -> Break retry loop
+            else Test Failed (Syntax/Logic) -> Try to fix
+                alt Have Retries Left?
+                    UTV->>AC: fix_test(code, error_log)
+                    AC->>AI: call_model(Fix Prompt)
+                    AI-->>AC: Fixed Python Code
+                    AC-->>UTV: update current_test_code
+                else No Retries Left
+                    Note over UTV: Give up
+                end
+            end
+        end
+
+        alt Final Result is PASS
+            UTV->>CP: process_coverage_report(...)
+            CP-->>UTV: updated coverage
+            
+            alt Coverage Increased?
+                Note over UTV: Keep File
+                UTV->>DB: insert_attempt(Success)
+            else No Increase
+                UTV->>UTV: rollback test file
+                UTV->>DB: insert_attempt(Fail: No coverage increase)
+            end
+        else Final Result is FAIL
+            UTV->>UTV: rollback test file
+            UTV->>DB: insert_attempt(Fail: Runtime Error/Max retries)
+        end
+    end
+
+    CA->>DB: dump_to_report(report_filepath)
+    DB->>RG: generate_report(results)
+    RG-->>DB: returns
+
+    note over CA: end
