@@ -91,6 +91,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const model = config.get<string>('model') || 'deepseek/deepseek-chat';
+        const baseUrl = config.get<string>('baseUrl') || 'https://api.deepseek.com';
         const sourcePathTpl = config.get<string>('sourceFilePath') || '{relativeFilePath}';
         const testPathTpl = config.get<string>('testFilePath') || 'tests/test_{fileName}';
         const reportPath = config.get<string>('codeCoverageReportPath') || 'coverage.xml';
@@ -158,32 +159,55 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`[INFO] Start running Qodo Cover`);
         outputChannel.appendLine(`[CMD] "${coverAgentPath}" ${args.join(' ')}`);
         
-        const childProcess = spawn(coverAgentPath, args, {
-            cwd: workspaceRoot,
-            env: { 
-                ...process.env, 
-                "OPENAI_API_KEY": apiKey,
-                "OPENAI_BASE_URL": "https://api.deepseek.com"
-            },
-            shell: false 
-        });
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Qodo Plus: Generating tests with AI",
+            cancellable: true // Cancelable
+        }, async (progress, token) => {
+            return new Promise<void>((resolve) => {
+                
+                const childProcess = spawn(coverAgentPath, args, {
+                    cwd: workspaceRoot,
+                    env: { 
+                        ...process.env, 
+                        "OPENAI_API_KEY": apiKey,
+                        "OPENAI_BASE_URL": baseUrl
+                    },
+                    shell: false 
+                });
 
-        childProcess.stdout.on('data', (data) => outputChannel.append(data.toString()));
-        childProcess.stderr.on('data', (data) => outputChannel.append(data.toString()));
+                // Listen event cancel
+                token.onCancellationRequested(() => {
+                    childProcess.kill(); 
+                    vscode.window.showWarningMessage("Qodo Plus: The test generation process has been cancelled");
+                    outputChannel.appendLine(`\n[WARN] Process cancelled by user`);
+                    resolve(); 
+                });
 
-        childProcess.on('close', (code) => {
-            if (code === 0) {
-                vscode.window.showInformationMessage(`Success`);
-                outputChannel.appendLine(`\n[DONE] Complete`);
-            } else {
-                vscode.window.showErrorMessage(`Error (Code: ${code}). Output`);
-                outputChannel.appendLine(`\n[ERROR] Exit code: ${code}`);
-            }
-        });
+                childProcess.stdout.on('data', (data) => outputChannel.append(data.toString()));
+                childProcess.stderr.on('data', (data) => outputChannel.append(data.toString()));
 
-        childProcess.on('error', (err) => {
-             vscode.window.showErrorMessage(`Launch error: ${err.message}`);
-             outputChannel.appendLine(`[FATAL] ${err.message}`);
+                childProcess.on('close', (code) => {
+                    if (token.isCancellationRequested) {
+                        return; 
+                    }
+                    
+                    if (code === 0) {
+                        vscode.window.showInformationMessage(`Qodo Plus: Successfully completed test generation`);
+                        outputChannel.appendLine(`\n[DONE] Complete.`);
+                    } else {
+                        vscode.window.showErrorMessage(`Qodo Plus: Error (Code: ${code}). Check output for details`);
+                        outputChannel.appendLine(`\n[ERROR] Exit code: ${code}`);
+                    }
+                    resolve();
+                });
+
+                childProcess.on('error', (err) => {
+                    vscode.window.showErrorMessage(`Launch error: ${err.message}`);
+                    outputChannel.appendLine(`[FATAL] ${err.message}`);
+                    resolve();
+                });
+            });
         });
     });
 
