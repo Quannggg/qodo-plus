@@ -1,71 +1,37 @@
-# qodo-plus README
+# Qodo Plus
 
-This is the README for your extension "qodo-plus". After writing up a brief description, we recommend including the following sections.
+Qodo Plus is an AI-powered VS Code extension that automatically generates, refines, and validates test cases for your Python projects.
 
 ## Features
-
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+* **AI-Powered Generation**: Automatically generates unit tests using advanced AI models (DeepSeek, OpenAI, etc.).
+* **Iterative Refinement**: Self-heals and improves tests based on tests failed, coverage reports and error logs.
+* **Auto Environment Setup**: Automatically sets up the required Python virtual environment (`venv`) on the first run.
+* **Fully Customizable**: Flexible configuration for test commands, file paths, and coverage targets using dynamic placeholders.
 
 ## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+* Python 3.x installed on your machine.
+* An API Key for the AI model (e.g., DeepSeek, OpenAI, or Fireworks AI).
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+This extension contributes the following settings. You can access them by opening VS Code Settings (`Ctrl + ,`) and searching for **Qodo Plus**:
 
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+* `qodoPlus.apiKey`: **(Required)** Your AI provider API key.
+* `qodoPlus.model`: Select the AI model to use (default: `deepseek/deepseek-chat`).
+* `qodoPlus.sourceFilePath`: Template for the source file path. Supports placeholders like `{relativeFilePath}`, `{fileName}`, and `{sourceDir}`. (default: `{relativeFilePath}`).
+* `qodoPlus.testFilePath`: Template for the generated test file path. Supports the same placeholders. (default: `tests/test_{fileName}`).
+* `qodoPlus.testCommand`: The command used to execute tests and generate coverage. Supports `{testFilePath}` and `{sourceDir}`. (default: `pytest {testFilePath} --cov={sourceDir} --cov-branch --cov-report=xml --cov-report=html`).
+* `qodoPlus.codeCoverageReportPath`: The path where the coverage report XML will be saved (default: `coverage.xml`).
+* `qodoPlus.coverageType`: The format of the coverage report (default: `cobertura`).
+* `qodoPlus.desiredCoverage`: The target code coverage percentage the AI should aim for, from 0 to 100 (default: `100`).
+* `qodoPlus.maxIterations`: The maximum number of iterations the AI will run to improve tests and coverage (default: `3`).
+* `qodoPlus.maxFixAttempts`: The maximum number of attempts the AI will make to fix failing tests within a single iteration (default: `1`).
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+Please report any issues on the GitHub repository.
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+### 0.0.1
+Initial release of Qodo Plus.

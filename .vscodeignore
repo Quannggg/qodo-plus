@@ -12,3 +12,15 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+
+.env
+
+python_service/qodo-cover/venv/
+python_service/qodo-cover/.venv/
+
+python_service/qodo-cover/tests/
+python_service/qodo-cover/tests_integration/
+python_service/qodo-cover/docs/
+python_service/qodo-cover/run.log
+python_service/qodo-cover/poetry.lock
+python_service/qodo-cover/.github/
