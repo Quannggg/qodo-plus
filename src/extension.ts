@@ -82,8 +82,26 @@ export function activate(context: vscode.ExtensionContext) {
         const sourceDir = toPosixPath(path.dirname(sourceRelPath));
 
         // READ THE ENTIRE CONFIGURATION FROM SETTINGS
+        const possibleEnvKeys = [
+            'OPENAI_API_KEY',
+            'FIREWORKS_AI_API_KEY',
+            'DEEPSEEK_API_KEY',
+            'ANTHROPIC_API_KEY',
+            'GEMINI_API_KEY',
+            'GROQ_API_KEY',
+            'QODO_API_KEY'
+        ];
         const config = vscode.workspace.getConfiguration('qodoPlus');
-        const apiKey = config.get<string>('apiKey') || process.env.OPENAI_API_KEY;
+        let apiKey = config.get<string>('apiKey');
+
+        if(!apiKey) {
+            for (const envKey of possibleEnvKeys) {
+                if (process.env[envKey]) {
+                    apiKey = process.env[envKey];
+                    break;
+                }
+            }
+        }
 
         if (!apiKey) {
              vscode.window.showErrorMessage('Please configure the API Key in Settings or environment variables.');
