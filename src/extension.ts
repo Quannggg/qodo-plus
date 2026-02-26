@@ -113,7 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
         const sourcePathTpl = config.get<string>('sourceFilePath') || '{relativeFilePath}';
         const testPathTpl = config.get<string>('testFilePath') || 'tests/test_{fileName}';
         const reportPath = config.get<string>('codeCoverageReportPath') || 'coverage.xml';
-        const testCmdTpl = config.get<string>('testCommand') || 'pytest {testFilePath} --cov={sourceDir} --cov-branch --cov-report=xml --cov-report=html';
+        const testCmdTpl = config.get<string>('testCommand') || 'python -m pytest {testFilePath} --cov={sourceDir} --cov-branch --cov-report=xml --cov-report=html';
         const coverageType = config.get<string>('coverageType') || 'cobertura';
         const desiredCoverage = config.get<number>('desiredCoverage') ?? 100;
         const maxIterations = config.get<number>('maxIterations') ?? 3;

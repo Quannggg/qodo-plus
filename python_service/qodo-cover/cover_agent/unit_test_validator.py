@@ -555,10 +555,10 @@ class UnitTestValidator:
             }
 
         # Test passed but coverage didn't increase
-        self.logger.info("Test passed but did not increase coverage. Attempting to fix for better coverage...")
+        self.logger.info("Test passed but did not increase coverage. Attempting to fix for better coverage")
 
         if attempt >= self.max_fix_attempts:
-            self.logger.info("No fix attempts left for coverage improvement.")
+            self.logger.info("No fix attempts left for coverage improvement")
             return {"coverage_increased": False, "should_break": True}
 
         new_test_code = self._fix_test_for_coverage(
@@ -620,15 +620,15 @@ class UnitTestValidator:
 
             # Prevent duplicate fixes
             if new_test_code in previous_test_codes:
-                self.logger.warning("AI generated identical fix (coverage mode). Stopping fix attempts.")
+                self.logger.warning("AI generated identical fix (coverage mode). Stopping fix attempts")
                 return None
 
             # Prevent trivial stubs
             if is_trivial_stub(new_test_code):
-                self.logger.warning("AI generated a trivial stub (coverage mode). Stopping fix attempts.")
+                self.logger.warning("AI generated a trivial stub (coverage mode). Stopping fix attempts")
                 return None
 
-            self.logger.info("Received potential fix from AI (coverage mode). Retrying validation...")
+            self.logger.info("Received potential fix from AI (coverage mode). Retrying validation")
             return new_test_code
             
         except Exception as parse_error:
@@ -655,15 +655,15 @@ class UnitTestValidator:
         self.logger.info(f"Test failed on attempt {attempt+1}.")
         
         if attempt >= self.max_fix_attempts:
-            self.logger.info("Max fix attempts reached. Marking test as failed.")
+            self.logger.info("Max fix attempts reached. Marking test as failed")
             return {"should_break": True}
 
-        self.logger.info("Attempting to auto-fix the test using AI...")
+        self.logger.info("Attempting to auto-fix the test using AI")
         
         try:
             # Check if test is a stub
             if is_trivial_stub(current_test_code) and attempt > 0:
-                self.logger.warning("AI generated a test stub with no logic. Skipping further fixes.")
+                self.logger.warning("AI generated a test stub with no logic. Skipping further fixes")
                 return {"should_break": True}
             
             # Call AI to fix
@@ -695,14 +695,14 @@ class UnitTestValidator:
                 
             # Validate fix
             if new_test_code in previous_test_codes:
-                self.logger.warning("AI generated identical fix. Stopping fix attempts.")
+                self.logger.warning("AI generated identical fix. Stopping fix attempts")
                 return {"should_break": True}
             
             if is_trivial_stub(new_test_code):
-                self.logger.warning("AI generated a trivial test stub. Stopping fix attempts.")
+                self.logger.warning("AI generated a trivial test stub. Stopping fix attempts")
                 return {"should_break": True}
             
-            self.logger.info("Received potential fix from AI. Retrying validation...")
+            self.logger.info("Received potential fix from AI. Retrying validation")
             return {"new_test_code": new_test_code}
             
         except Exception as e:

@@ -132,6 +132,7 @@ class UnitTestGenerator:
         Returns:
             str: A formatted string with details of the failed tests.
         """
+        # seen_codes = set()
         if not failed_test_runs:
             failed_test_runs_value = ""
         else:
@@ -143,6 +144,9 @@ class UnitTestGenerator:
                         continue
                     # dump dict to str
                     code = json.dumps(failed_test_dict)
+                    # if code in seen_codes:
+                    #     continue
+                    # seen_codes.add(code)
                     error_message = failed_test.get("error_message", None)
                     failed_test_runs_value += f"Failed Test:\n```\n{code}\n```\n"
                     if error_message:
