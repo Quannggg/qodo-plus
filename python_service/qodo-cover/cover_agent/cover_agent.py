@@ -312,6 +312,7 @@ class CoverAgent:
             - May exit program if strict coverage requirements not met
         """
         current_coverage = round(self.test_validator.current_coverage * 100, 2)
+        branch_coverage = round(self.test_validator.current_branch_coverage *100, 2)
         desired_coverage = self.test_validator.desired_coverage
 
         if self.test_validator.current_coverage >= (desired_coverage / 100):
@@ -323,7 +324,8 @@ class CoverAgent:
             coverage_type = "diff coverage" if self.config.diff_coverage else "coverage"
             failure_message = (
                 f"Reached maximum iteration limit without achieving desired {coverage_type}. "
-                f"Current Coverage: {current_coverage}%"
+                f"Current Coverage: {current_coverage}%. "
+                f"Branch Coverage: {branch_coverage}%"
             )
 
             if self.config.strict_coverage:

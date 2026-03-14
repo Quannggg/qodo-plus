@@ -907,7 +907,7 @@ class UnitTestValidator:
 
         self.logger.info(
             f"Test passed and coverage increased after {len(previous_test_codes)} attempts. "
-            f"Current coverage: {self.format_coverage_percentage(new_percentage_covered)}%"
+            f"Current coverage: {self.format_coverage_percentage(new_percentage_covered)}%. "
             f"Current branch coverage: {self.format_coverage_percentage(new_branch_covered)}%"
         )
         
