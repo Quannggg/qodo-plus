@@ -45,49 +45,59 @@ sequenceDiagram
     UTV->>CP: process_coverage_report(time_of_test)
     CP-->>UTV: coverage lines + coverage pct
 
-    note over CA: Loop until coverage >= desired or<br/>we reach max iterations
-    CA->>UTG: generate_tests()
+    loop Iterations Left?
+        note over CA: AI Generates Tests
+        CA->>UTG: generate_tests()
+        UTG->>AC: generate_tests(...)
+        AC->>AI: call_model()
+        AI-->>AC: returns new tests (YAML)
+        AC-->>UTG: parse new_tests[]
 
-    UTG->>AC: generate_tests(...)
-    AC->>AI: call_model()
-    AI-->>AC: returns new tests (YAML)
-    AC-->>UTG: parse new_tests[]
-
-    loop For each new test
-        CA->>UTV: validate_test(new_test)
-        loop Retry Attempt (0 to max_fix_attempts)
-            UTV->>UTV: Write/Update Test File
-            UTV->>R: run_command(test_command)
-            R-->>UTV: returns exit_code, stderr, stdout
-            alt Test Passed (exit_code == 0)
-                Note over UTV: Test OK -> Break retry loop
-            else Test Failed (Syntax/Logic) -> Try to fix
-                alt Have Retries Left?
-                    UTV->>AC: fix_test(code, error_log)
-                    AC->>AI: call_model(Fix Prompt)
-                    AI-->>AC: Fixed Python Code
-                    AC-->>UTV: update current_test_code
-                else No Retries Left
-                    Note over UTV: Give up
+        loop Tests Left? (Yes)
+            CA->>UTV: validate_test(new_test)
+            
+            loop Retry Attempt Loop
+                UTV->>R: Run Test
+                R-->>UTV: returns exit_code, stderr, stdout
+                
+                alt Retries Left? (Yes)
+                    alt Pass or Fail? (Pass)
+                        UTV->>CP: process_coverage_report()
+                        CP-->>UTV: updated coverage
+                        
+                        alt Coverage Up? (Yes)
+                            UTV->>DB: Save Test
+                            Note over UTV: Break retry loop
+                        else Coverage Up? (No)
+                            UTV->>AC: AI Analysis (Passed but no coverage increase)
+                            AC->>AI: call_model(Fix Prompt)
+                            AI-->>AC: Fixed Python Code
+                            AC-->>UTV: AI Fixes Code
+                        end
+                        
+                    else Pass or Fail? (Fail)
+                        UTV->>AC: AI Analysis 
+                        AC->>AI: call_model(Fix Prompt)
+                        AI-->>AC: Fixed Python Code
+                        AC-->>UTV: AI Fixes Code
+                    end
+                    
+                else Retries Left? (No)
+                    UTV->>CP: process_coverage_report()
+                    CP-->>UTV: updated coverage
+                    
+                    alt Coverage Up? (Yes)
+                        UTV->>DB: Save Test
+                    else Coverage Up? (No)
+                        UTV->>DB: Discard Test
+                    end
+                    Note over UTV: Break retry loop
                 end
             end
         end
-
-        alt Final Result is PASS
-            UTV->>CP: process_coverage_report(...)
-            CP-->>UTV: updated coverage
-            
-            alt Coverage Increased?
-                Note over UTV: Keep File
-                UTV->>DB: insert_attempt(Success)
-            else No Increase
-                UTV->>UTV: rollback test file
-                UTV->>DB: insert_attempt(Fail: No coverage increase)
-            end
-        else Final Result is FAIL
-            UTV->>UTV: rollback test file
-            UTV->>DB: insert_attempt(Fail: Runtime Error/Max retries)
-        end
+        
+        note over CA: Tests Left? (No)
+        CA->>CA: New Prompt (Prepare for next iteration)
     end
 
     CA->>DB: dump_to_report(report_filepath)
