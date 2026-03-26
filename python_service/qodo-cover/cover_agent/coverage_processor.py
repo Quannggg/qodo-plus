@@ -47,7 +47,7 @@ class CoverageProcessor:
         self.use_report_coverage_feature_flag = use_report_coverage_feature_flag
         self.diff_coverage_report_path = diff_coverage_report_path
 
-    def process_coverage_report(self, time_of_test_command: int) -> Tuple[list, list, float, float]:
+    def process_coverage_report(self, time_of_test_command: int) -> Tuple[list, list, float, float, dict]:
         """
         Verifies the coverage report's existence and update time, and then
         parses the report based on its type to extract coverage data.
@@ -81,7 +81,7 @@ class CoverageProcessor:
                 f"The coverage report file was not updated after the test command. file_mod_time_ms: {file_mod_time_ms}, time_of_test_command: {time_of_test_command}. {file_mod_time_ms > time_of_test_command}"
             )
 
-    def parse_coverage_report(self) -> Tuple[list, list, float, float]:
+    def parse_coverage_report(self) -> Tuple[list, list, float, float, dict]:
         """
         Parses a code coverage report to extract covered and missed line numbers for a specific file,
         and calculates the coverage percentage, based on the specified coverage report type.
@@ -111,7 +111,7 @@ class CoverageProcessor:
             else:
                 raise ValueError(f"Unsupported coverage report type: {self.coverage_type}")
 
-    def parse_coverage_report_cobertura(self, filename: str = None) -> Union[Tuple[list, list, float, float], dict]:
+    def parse_coverage_report_cobertura(self, filename: str = None) -> Union[Tuple[list, list, float, float, dict], dict]:
         """
         Parses a Cobertura XML code coverage report to extract covered and missed line numbers
         for a specific file or for all files (if filename is None). Aggregates coverage data from
@@ -131,14 +131,16 @@ class CoverageProcessor:
             # Collect coverage for all <class> elements matching the given filename
             all_covered, all_missed = [], []
             total_b_covered, total_b_count =  0, 0
+            all_branches_missed = {}
             for cls in root.findall(".//class"):
                 name_attr = cls.get("filename")
                 if name_attr and name_attr.endswith(filename):
-                    c_covered, c_missed, b_covered, b_total = self.parse_coverage_data_for_class(cls)
+                    c_covered, c_missed, b_covered, b_total, b_missed_info = self.parse_coverage_data_for_class(cls)
                     all_covered.extend(c_covered)
                     all_missed.extend(c_missed)
                     total_b_covered += b_covered
                     total_b_count += b_total
+                    all_branches_missed.update(b_missed_info)
 
             # Deduplicate and compute coverage
             covered_set = set(all_covered)
@@ -147,7 +149,7 @@ class CoverageProcessor:
             coverage_percentage = (len(covered_set) / total_lines) if total_lines else 0
             branch_coverage = (total_b_covered / total_b_count) if total_b_count else 0
 
-            return list(covered_set), list(missed_set), coverage_percentage, branch_coverage
+            return list(covered_set), list(missed_set), coverage_percentage, branch_coverage, all_branches_missed
 
         else:
             # Collect coverage for every <class>, grouping by filename
@@ -157,16 +159,17 @@ class CoverageProcessor:
             for cls in root.findall(".//class"):
                 cls_filename = cls.get("filename")
                 if cls_filename:
-                    c_covered, c_missed, b_covered, b_total = self.parse_coverage_data_for_class(cls)
+                    c_covered, c_missed, b_covered, b_total, b_missed_info = self.parse_coverage_data_for_class(cls)
                     if cls_filename not in file_map:
-                        file_map[cls_filename] = ([], [], 0, 0)
-                    curr_c, curr_m, curr_bc, curr_bt = file_map[cls_filename]
+                        file_map[cls_filename] = ([], [], 0, 0, {})
+                    curr_c, curr_m, curr_bc, curr_bt, curr_bmi = file_map[cls_filename]
                     curr_c.extend(c_covered)
                     curr_m.extend(c_missed)
-                    file_map[cls_filename] = (curr_c, curr_m, curr_bc + b_covered, curr_bt + b_total)
+                    curr_bmi.update(b_missed_info)
+                    file_map[cls_filename] = (curr_c, curr_m, curr_bc + b_covered, curr_bt + b_total, curr_bmi)
 
             # Convert raw lists to sets, compute coverage, store results
-            for f_name, (c_covered, c_missed, bc, bt) in file_map.items():
+            for f_name, (c_covered, c_missed, bc, bt, bmi) in file_map.items():
                 covered_set = set(c_covered)
                 missed_set = set(c_missed) - covered_set
                 total_lines = len(covered_set) + len(missed_set)
@@ -177,11 +180,12 @@ class CoverageProcessor:
                     list(missed_set),
                     coverage_percentage,
                     branch_coverage,
+                    bmi
                 )
 
             return coverage_data
 
-    def parse_coverage_data_for_class(self, cls) -> Tuple[list, list, float, float]:
+    def parse_coverage_data_for_class(self, cls) -> Tuple[list, list, float, float, dict]:
         """
         Parses coverage data for a single class.
 
@@ -194,6 +198,7 @@ class CoverageProcessor:
         """
         lines_covered, lines_missed = [], []
         branches_covered, total_branches = 0, 0
+        branches_missed_info = {}  # line_number -> condition coverage info for missed branches
         for line in cls.findall(".//line"):
             line_number = int(line.get("number"))
             hits = int(line.get("hits"))
@@ -208,11 +213,15 @@ class CoverageProcessor:
                 if match:
                     branches_covered += int(match.group(1))
                     total_branches += int(match.group(2))
+                    
+                missing_branches_str = line.get("missing-branches")
+                if missing_branches_str:
+                    branches_missed_info[line_number] = [b.strip() for b in missing_branches_str.split(",")]
 
         total_lines = len(lines_covered) + len(lines_missed)
         coverage_percentage = (len(lines_covered) / total_lines) if total_lines > 0 else 0
 
-        return lines_covered, lines_missed, branches_covered, total_branches
+        return lines_covered, lines_missed, branches_covered, total_branches,branches_missed_info
 
     def parse_coverage_report_lcov(self):
 

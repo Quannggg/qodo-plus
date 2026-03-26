@@ -335,9 +335,11 @@ class UnitTestValidator:
         )
 
         try:
-            coverage, branch, coverage_percentages = self.post_process_coverage_report(time_of_test_command)
+            coverage, branch, coverage_percentages, branch_dict = self.post_process_coverage_report(time_of_test_command)
+            self.current_branch_dict = branch_dict
             self.current_coverage = coverage
             self.current_branch_coverage = branch
+            self.last_branch_dict = branch_dict.copy()
             self.last_coverage_percentages = coverage_percentages.copy()
             self.logger.info(f"Initial coverage: {self.format_coverage_percentage(self.current_coverage)}%")
             self.logger.info(f"Initial branch coverage: {self.format_coverage_percentage(self.current_branch_coverage)}%")
@@ -542,9 +544,11 @@ class UnitTestValidator:
                           should_break, new_test_code
         """
         try:
-            new_percentage_covered, new_branch_covered, new_coverage_percentages = self.post_process_coverage_report(
+            new_percentage_covered, new_branch_covered, new_coverage_percentages, new_branch_dict = self.post_process_coverage_report(
                 time_of_test_command
             )
+            self.current_branch_coverage = new_branch_covered
+            self.current_branch_dict = new_branch_dict
         except Exception as e:
             self.logger.error(f"Error during coverage verification inside loop: {e}")
             return {"coverage_increased": False, "should_break": True}
@@ -565,7 +569,7 @@ class UnitTestValidator:
 
         new_test_code = self._fix_test_for_coverage(
             generated_test, current_test_code, previous_test_codes,
-            new_percentage_covered
+            new_percentage_covered, new_branch_covered, new_branch_dict
         )
         
         if new_test_code:
@@ -578,7 +582,9 @@ class UnitTestValidator:
         generated_test: Dict[str, Any],
         current_test_code: str,
         previous_test_codes: List[str],
-        new_percentage_covered: float
+        new_percentage_covered: float,
+        new_branch_covered: float,
+        new_branch_dict: Dict[str, Any]
     ) -> Optional[str]:
         """
         Attempt to fix test to improve coverage.
@@ -594,6 +600,9 @@ class UnitTestValidator:
 
         Current coverage: {self.format_coverage_percentage(self.current_coverage)}%
         New coverage after this test: {self.format_coverage_percentage(new_percentage_covered)}%
+        Current branch coverage: {self.format_coverage_percentage(self.current_branch_coverage)}%
+        Current missing branch details: {json.dumps(new_branch_dict, indent=2)}
+        New branch coverage: {self.format_coverage_percentage(new_branch_covered)}%
 
         Original Test Purpose: {test_behavior}
         Lines intended to cover: {lines_to_cover}
@@ -731,6 +740,10 @@ class UnitTestValidator:
         enhanced_error_message = f"""
         Original Test Purpose: {test_behavior}
         Lines intended to cover: {lines_to_cover}
+        Current coverage: {self.format_coverage_percentage(self.current_coverage)}%
+        Current branch coverage: {self.format_coverage_percentage(self.current_branch_coverage)}%
+        Current missing branch details: {json.dumps(self.current_branch_dict, indent=2)}
+        New branch coverage: {self.format_coverage_percentage(self.current_branch_coverage)}%
 
         Execution Error:
         Stdout: {final_stdout}
@@ -839,11 +852,13 @@ class UnitTestValidator:
         """
         # Verify coverage increased one more time
         try:
-            new_percentage_covered, new_branch_covered, new_coverage_percentages = self.post_process_coverage_report(
+            new_percentage_covered, new_branch_covered, new_coverage_percentages, new_branch_dict = self.post_process_coverage_report(
                 time_of_test_command
             )
-
-            if new_percentage_covered <= self.current_coverage:
+            should_break = False
+            if new_branch_covered == 1 and self.current_coverage < 1:
+                should_break = True
+            if new_percentage_covered <= self.current_coverage or should_break == True: 
                 # Rollback if coverage didn't actually increase
                 self._restore_test_file(original_content)
                 self.logger.info("Test did not increase coverage. Rolling back.")
@@ -904,11 +919,14 @@ class UnitTestValidator:
         
         self.current_coverage = new_percentage_covered
         self.last_coverage_percentages = new_coverage_percentages.copy()
+        
+        self.current_branch_coverage = new_branch_covered
+        self.last_branch_dict = new_branch_dict.copy()
 
         self.logger.info(
             f"Test passed and coverage increased after {len(previous_test_codes)} attempts. "
             f"Current coverage: {self.format_coverage_percentage(new_percentage_covered)}%. "
-            f"Current branch coverage: {self.format_coverage_percentage(new_branch_covered)}%"
+            f"Current branch coverage: {self.format_coverage_percentage(self.current_branch_coverage)}%"
         )
         
         return {
@@ -1020,7 +1038,7 @@ class UnitTestValidator:
 
     def post_process_coverage_report(
         self, time_of_test_command: float
-    ) -> Tuple[float, float, Dict[str, float]]:
+    ) -> Tuple[float, float, Dict[str, float], Dict[str, Any]]:
         """
         Process coverage report and return metrics.
         
@@ -1031,7 +1049,7 @@ class UnitTestValidator:
             Tuple of (percentage_covered, coverage_percentages)
         """
         coverage_percentages: Dict[str, float] = {}
-        
+        branch_dict: Dict[str, Any] = {}
         if self.use_report_coverage_feature_flag:
             percentage_covered = self._process_full_report_coverage(
                 time_of_test_command, coverage_percentages
@@ -1039,10 +1057,10 @@ class UnitTestValidator:
         elif self.diff_coverage:
             percentage_covered = self._process_diff_coverage(time_of_test_command)
         else:
-            percentage_covered, branch_covered = self._process_standard_coverage(time_of_test_command)
+            percentage_covered, branch_covered, branch_dict = self._process_standard_coverage(time_of_test_command)
             
         
-        return percentage_covered, branch_covered, coverage_percentages
+        return percentage_covered, branch_covered, coverage_percentages, branch_dict
 
     def _process_full_report_coverage(
         self, time_of_test_command: float, coverage_percentages: Dict[str, float]
@@ -1084,15 +1102,15 @@ class UnitTestValidator:
         )
         return percentage_covered
 
-    def _process_standard_coverage(self, time_of_test_command: float) -> Tuple[float, float]:
+    def _process_standard_coverage(self, time_of_test_command: float) -> Tuple[float, float, dict]:
         """Process standard coverage report."""
-        lines_covered, lines_missed, percentage_covered, branch_covered = self.coverage_processor.process_coverage_report(
+        lines_covered, lines_missed, percentage_covered, branch_covered, branch_dict = self.coverage_processor.process_coverage_report(
             time_of_test_command=time_of_test_command
         )
         self.code_coverage_report = self._format_coverage_report(
             lines_covered, lines_missed, percentage_covered, branch_covered
         )
-        return percentage_covered, branch_covered
+        return percentage_covered, branch_covered, branch_dict
 
     def _calculate_coverage_percentage(self, lines_covered: int, total_lines: int) -> float:
         """Calculate coverage percentage safely handling division by zero."""
@@ -1214,6 +1232,7 @@ class UnitTestValidator:
     def reset_coverage_state(self) -> None:
         """Reset coverage tracking state."""
         self.last_coverage_percentages.clear()
+        self.last_branch_dict.clear()
         self.failed_test_runs.clear()
         self.code_coverage_report = ""
         self.logger.info("Coverage state reset")
