@@ -31,15 +31,15 @@ async function setupPythonEnvironment(context: vscode.ExtensionContext, outputCh
             outputChannel.appendLine(`[INFO] Creating a Virtual Environment (venv)`);
             
             // Create environment
-            const pythonCmd = isWindows ? 'py' : 'python3';
-            await execAsync(`${pythonCmd} -3.11 -m venv venv`, { cwd: qodoCoverDir });
+            const pythonCmd = isWindows ? 'py -3.11' : 'python3';
+            await execAsync(`${pythonCmd} -m venv venv`, { cwd: qodoCoverDir });
 
             // Install dependency
             progress.report({ message: "Downloading the library (this may take a few minutes)" });
-            outputChannel.appendLine(`[INFO] Running pip install -e .`);
+            outputChannel.appendLine(`[INFO] Running pip install .`);
             
             const pipCmd = isWindows ? path.join('venv', 'Scripts', 'pip') : path.join('venv', 'bin', 'pip');
-            const { stdout, stderr } = await execAsync(`${pipCmd} install -e .`, { cwd: qodoCoverDir });
+            const { stdout, stderr } = await execAsync(`${pipCmd} install .`, { cwd: qodoCoverDir });
             
             outputChannel.appendLine(stdout);
             if (stderr) {outputChannel.appendLine(`[WARN] ${stderr}`);}
@@ -65,14 +65,14 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) {
-            vscode.window.showErrorMessage('You need to open the project folder');
+        const currentWorkspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
+        if (!currentWorkspaceFolder) {
+            vscode.window.showErrorMessage('The file currently open does not belong to any workspace!');
             return;
         }
 
-        // BASIC INFORMATION ABOU THE PATH
-        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        // BASIC INFORMATION ABOUT THE PATH
+        const workspaceRoot = currentWorkspaceFolder.uri.fsPath;
         const sourceAbsPath = editor.document.fileName;
         const toPosixPath = (p: string) => p.split(path.sep).join('/');
         
