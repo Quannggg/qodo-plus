@@ -7,6 +7,8 @@ import * as util from 'util';
 
 const outputChannel = vscode.window.createOutputChannel("Qodo Cover");
 const execAsync = util.promisify(exec);
+
+// Create a venv for the extension's internal use and install the cover-agent package
 async function setupPythonEnvironment(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel): Promise<boolean> {
     const isWindows = os.platform() === 'win32';
     const qodoCoverDir = path.join(context.extensionPath, 'python_service', 'qodo-cover');
@@ -23,38 +25,83 @@ async function setupPythonEnvironment(context: vscode.ExtensionContext, outputCh
 
     return await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
-        title: "Qodo Plus: Installing the Python environment",
+        title: "Qodo Plus: Installing the Extension Python environment",
         cancellable: false
     }, async (progress) => {
         try {
             outputChannel.show(true);
-            outputChannel.appendLine(`[INFO] Creating a Virtual Environment (venv)`);
+            outputChannel.appendLine(`[INFO] Creating Extension venv...`);
             
-            // Create environment
             const pythonCmd = isWindows ? 'py -3.11' : 'python3';
             await execAsync(`${pythonCmd} -m venv venv`, { cwd: qodoCoverDir });
 
-            // Install dependency
-            progress.report({ message: "Downloading the library (this may take a few minutes)" });
-            outputChannel.appendLine(`[INFO] Running pip install .`);
-            
+            progress.report({ message: "Installing cover-agent dependencies..." });
             const pipCmd = isWindows ? path.join('venv', 'Scripts', 'pip') : path.join('venv', 'bin', 'pip');
             const { stdout, stderr } = await execAsync(`${pipCmd} install .`, { cwd: qodoCoverDir });
             
             outputChannel.appendLine(stdout);
             if (stderr) {outputChannel.appendLine(`[WARN] ${stderr}`);}
             
-            outputChannel.appendLine(`[INFO] Python environment setup complete`);
-            vscode.window.showInformationMessage("Qodo Plus: Environment setup complete. Starting test generation");
+            outputChannel.appendLine(`[INFO] Extension environment setup complete`);
             return true;
-
         } catch (error: any) {
-            vscode.window.showErrorMessage(`Environment setup error: Please check if Python is installed on your machine`);
-            outputChannel.appendLine(`[ERROR] ${error.message}`);
+            vscode.window.showErrorMessage(`Extension Env Error: ${error.message}`);
             return false;
         }
     });
 }
+
+// Create venv, install pytest and dependencies for the current workspace
+async function setupWorkspaceEnvironment(workspaceRoot: string, outputChannel: vscode.OutputChannel): Promise<boolean> {
+    const isWindows = os.platform() === 'win32';
+    const venvPath = path.join(workspaceRoot, 'venv');
+    const pipCmd = isWindows ? path.join(venvPath, 'Scripts', 'pip') : path.join(venvPath, 'bin', 'pip');
+
+    return await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Qodo Plus: Preparing Workspace Environment",
+        cancellable: false
+    }, async (progress) => {
+        try {
+            // Create venv if not exists
+            if (!fs.existsSync(venvPath)) {
+                outputChannel.appendLine(`[INFO] Creating workspace venv at ${venvPath}`);
+                await execAsync(`${isWindows ? 'py -3' : 'python3'} -m venv venv`, { cwd: workspaceRoot });
+            }
+
+            // install pytest and plugin 
+            progress.report({ message: "Installing testing tools (pytest, pytest-cov)" });
+            outputChannel.appendLine(`[INFO] Installing pytest and pytest-cov...`);
+            await execAsync(`${pipCmd} install pytest pytest-cov pytest-twisted pytest-asyncio`, { cwd: workspaceRoot });
+
+            // dependencies 
+            const reqPath = path.join(workspaceRoot, 'requirements.txt');
+            if (fs.existsSync(reqPath)) {
+                progress.report({ message: "Installing dependencies from requirements.txt" });
+                outputChannel.appendLine(`[INFO] Found requirements.txt. Installing dependencies`);
+                await execAsync(`${pipCmd} install -r requirements.txt`, { cwd: workspaceRoot });
+            } else {
+                // requirements.txt or pip install .
+                progress.report({ message: "Installing project as a package (pip install .)" });
+                outputChannel.appendLine(`[INFO] No requirements.txt found. Running pip install .`);
+                try {
+                    await execAsync(`${pipCmd} install .`, { cwd: workspaceRoot });
+                    outputChannel.appendLine(`[INFO] Successfully installed current directory as a package.`);
+                } catch (installErr: any) {
+                    outputChannel.appendLine(`[WARN] 'pip install .' skipped: Directory does not contain a valid package setup.`);
+                }
+            }
+
+            outputChannel.appendLine(`[INFO] Workspace environment ready!`);
+            return true;
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Workspace Env Error: ${error.message}`);
+            outputChannel.appendLine(`[ERROR] Workspace setup failed: ${error.message}`);
+            return false;
+        }
+    });
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "qodo-plus" is active!');
 
@@ -71,25 +118,17 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        // BASIC INFORMATION ABOUT THE PATH
         const workspaceRoot = currentWorkspaceFolder.uri.fsPath;
         const sourceAbsPath = editor.document.fileName;
         const toPosixPath = (p: string) => p.split(path.sep).join('/');
         
-        // posix path
         const sourceRelPath = toPosixPath(path.relative(workspaceRoot, sourceAbsPath));
         const fileName = path.basename(sourceAbsPath);
         const sourceDir = toPosixPath(path.dirname(sourceRelPath));
 
-        // READ THE ENTIRE CONFIGURATION FROM SETTINGS
         const possibleEnvKeys = [
-            'OPENAI_API_KEY',
-            'FIREWORKS_AI_API_KEY',
-            'DEEPSEEK_API_KEY',
-            'ANTHROPIC_API_KEY',
-            'GEMINI_API_KEY',
-            'GROQ_API_KEY',
-            'QODO_API_KEY'
+            'OPENAI_API_KEY', 'FIREWORKS_AI_API_KEY', 'DEEPSEEK_API_KEY',
+            'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GROQ_API_KEY', 'QODO_API_KEY'
         ];
         const config = vscode.workspace.getConfiguration('qodoPlus');
         let apiKey = config.get<string>('apiKey');
@@ -113,13 +152,19 @@ export function activate(context: vscode.ExtensionContext) {
         const sourcePathTpl = config.get<string>('sourceFilePath') || '{relativeFilePath}';
         const testPathTpl = config.get<string>('testFilePath') || 'tests/test_{fileName}';
         const reportPath = config.get<string>('codeCoverageReportPath') || 'coverage.xml';
-        const testCmdTpl = config.get<string>('testCommand') || 'python -m pytest {testFilePath} --cov={sourceDir} --cov-branch --cov-report=xml --cov-report=html';
+        
+        // testCommand 
+        const isWindows = os.platform() === 'win32';
+        const defaultTestCmd = isWindows 
+            ? 'venv\\Scripts\\pytest {testFilePath} --cov={sourceDir} --cov-branch --cov-report=xml --cov-report=html'
+            : 'venv/bin/pytest {testFilePath} --cov={sourceDir} --cov-branch --cov-report=xml --cov-report=html';
+        
+        const testCmdTpl = config.get<string>('testCommand') || defaultTestCmd;
         const coverageType = config.get<string>('coverageType') || 'cobertura';
         const desiredCoverage = config.get<number>('desiredCoverage') ?? 100;
         const maxIterations = config.get<number>('maxIterations') ?? 3;
         const maxFixAttempts = config.get<number>('maxFixAttempts') ?? 1;
 
-        // PLACEHOLDERS
         const finalSourcePath = sourcePathTpl
             .replace(/{relativeFilePath}/g, sourceRelPath)
             .replace(/{fileName}/g, fileName)
@@ -134,11 +179,17 @@ export function activate(context: vscode.ExtensionContext) {
             .replace(/{testFilePath}/g, finalTestPath)
             .replace(/{sourceDir}/g, sourceDir);
 
-        const isSetupSuccess = await setupPythonEnvironment(context, outputChannel);
-        if (!isSetupSuccess) {
+        // extension environment
+        const isExtSetupSuccess = await setupPythonEnvironment(context, outputChannel);
+        if (!isExtSetupSuccess) {
             return; 
         }
-        // CREATE TEST FOLDER IF NOT EXIST
+        // workspace environment
+        outputChannel.show(true);
+        const isWorkspaceSetupSuccess = await setupWorkspaceEnvironment(workspaceRoot, outputChannel);
+        if (!isWorkspaceSetupSuccess) {
+            return;
+        }
         const testDirAbs = path.join(workspaceRoot, path.dirname(finalTestPath));
         if (!fs.existsSync(testDirAbs)) {
             try {
@@ -149,8 +200,6 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }
 
-        // FIND FILE EXE COVER-AGENT
-        const isWindows = os.platform() === 'win32';
         const venvRoot = path.join(context.extensionPath, 'python_service', 'qodo-cover', 'venv');
         const coverAgentPath = path.join(
             venvRoot, 
@@ -158,7 +207,6 @@ export function activate(context: vscode.ExtensionContext) {
             isWindows ? 'cover-agent.exe' : 'cover-agent'
         );
 
-        // PASS THE ENTIRE CONFIGURATION INTO THE ARGS ARRAY 
         const args = [
             '--model', model,
             '--source-file-path', finalSourcePath,
@@ -171,8 +219,6 @@ export function activate(context: vscode.ExtensionContext) {
             '--max-fix-attempts', maxFixAttempts.toString()
         ];
 
-        // RUN
-        outputChannel.show(true);
         outputChannel.clear();
         outputChannel.appendLine(`[INFO] Start running Qodo Cover`);
         outputChannel.appendLine(`[CMD] "${coverAgentPath}" ${args.join(' ')}`);
@@ -180,7 +226,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Qodo Plus: Generating tests with AI",
-            cancellable: true // Cancelable
+            cancellable: true 
         }, async (progress, token) => {
             return new Promise<void>((resolve) => {
                 
@@ -194,7 +240,6 @@ export function activate(context: vscode.ExtensionContext) {
                     shell: false 
                 });
 
-                // Listen event cancel
                 token.onCancellationRequested(() => {
                     childProcess.kill(); 
                     vscode.window.showWarningMessage("Qodo Plus: The test generation process has been cancelled");
@@ -209,7 +254,6 @@ export function activate(context: vscode.ExtensionContext) {
                     if (token.isCancellationRequested) {
                         return; 
                     }
-                    
                     if (code === 0) {
                         vscode.window.showInformationMessage(`Qodo Plus: Successfully completed test generation`);
                         outputChannel.appendLine(`\n[DONE] Complete.`);
