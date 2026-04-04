@@ -1055,7 +1055,7 @@ class UnitTestValidator:
                 time_of_test_command, coverage_percentages
             )
         elif self.diff_coverage:
-            percentage_covered = self._process_diff_coverage(time_of_test_command)
+            percentage_covered, branch_covered, branch_dict = self._process_diff_coverage(time_of_test_command)
         else:
             percentage_covered, branch_covered, branch_dict = self._process_standard_coverage(time_of_test_command)
             
@@ -1094,13 +1094,13 @@ class UnitTestValidator:
     def _process_diff_coverage(self, time_of_test_command: float) -> float:
         """Process diff coverage report."""
         self.generate_diff_coverage_report()
-        lines_covered, lines_missed, percentage_covered = self.coverage_processor.process_coverage_report(
+        lines_covered, lines_missed, percentage_covered, branch_covered, branch_dict = self.coverage_processor.process_coverage_report(
             time_of_test_command=time_of_test_command
         )
         self.code_coverage_report = self._format_coverage_report(
-            lines_covered, lines_missed, percentage_covered
+            lines_covered, lines_missed, percentage_covered, branch_covered, branch_dict
         )
-        return percentage_covered
+        return percentage_covered, branch_covered, branch_dict
 
     def _process_standard_coverage(self, time_of_test_command: float) -> Tuple[float, float, dict]:
         """Process standard coverage report."""
@@ -1108,7 +1108,7 @@ class UnitTestValidator:
             time_of_test_command=time_of_test_command
         )
         self.code_coverage_report = self._format_coverage_report(
-            lines_covered, lines_missed, percentage_covered, branch_covered
+            lines_covered, lines_missed, percentage_covered, branch_covered, branch_dict
         )
         return percentage_covered, branch_covered, branch_dict
 
@@ -1122,7 +1122,7 @@ class UnitTestValidator:
         return lines_covered / total_lines
 
     def _format_coverage_report(
-        self, lines_covered: Any, lines_missed: Any, percentage_covered: float, branch_covered: float
+        self, lines_covered: Any, lines_missed: Any, percentage_covered: float, branch_covered: float, branch_dict: Dict[str, Any] = None
     ) -> str:
         """Format coverage report as string."""
         return (
@@ -1130,6 +1130,7 @@ class UnitTestValidator:
             f"Lines missed: {lines_missed}\n"
             f"Percentage covered: {self.format_coverage_percentage(percentage_covered)}%"
             f"Branch coverage: {self.format_coverage_percentage(branch_covered)}%"
+            f"Branch details: {json.dumps(branch_dict, indent=2) if branch_dict else 'N/A'}"
         )
 
     def _log_coverage_summary(
