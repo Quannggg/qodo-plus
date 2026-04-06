@@ -3,11 +3,39 @@ import * as path from 'path';
 import { spawn, exec } from 'child_process';
 import * as os from 'os';
 import * as fs from 'fs';
-import * as util from 'util';
 
 const outputChannel = vscode.window.createOutputChannel("Qodo Cover");
-const execAsync = util.promisify(exec);
 
+function runStreamedCommand(command: string, args: string[], cwd: string, outputChannel: vscode.OutputChannel): Promise<void> {
+    return new Promise((resolve, reject) => {
+        outputChannel.appendLine(`\n[CMD] ${command} ${args.join(' ')}`);
+        
+        const isWindows = os.platform() === 'win32';
+        const childProcess = spawn(command, args, { cwd, shell: isWindows });
+
+        // stream log for stdout
+        childProcess.stdout.on('data', (data) => {
+            outputChannel.append(data.toString());
+        });
+
+        // stream log for stderr
+        childProcess.stderr.on('data', (data) => {
+            outputChannel.append(data.toString());
+        });
+
+        childProcess.on('close', (code) => {
+            if (code === 0) {
+                resolve();
+            } else {
+                reject(new Error(`Command failed with exit code ${code}`));
+            }
+        });
+
+        childProcess.on('error', (err) => {
+            reject(err);
+        });
+    });
+}
 // Create a venv for the extension's internal use and install the cover-agent package
 async function setupPythonEnvironment(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel): Promise<boolean> {
     const isWindows = os.platform() === 'win32';
@@ -25,78 +53,110 @@ async function setupPythonEnvironment(context: vscode.ExtensionContext, outputCh
 
     return await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
-        title: "Qodo Plus: Installing the Extension Python environment",
-        cancellable: false
+        title: "Qodo Plus: Installing Extension Environment (Check Output)",
+        cancellable: true
     }, async (progress) => {
         try {
+            // show output and logs
             outputChannel.show(true);
-            outputChannel.appendLine(`[INFO] Creating Extension venv...`);
             
-            const pythonCmd = isWindows ? 'py -3.11' : 'python3';
-            await execAsync(`${pythonCmd} -m venv venv`, { cwd: qodoCoverDir });
+            // create venv
+            progress.report({ message: "Creating Extension venv..." });
+            outputChannel.appendLine(`\n[INFO] Creating Extension venv...`);
+            
+            // arguments for runStreamedCommand
+            const pythonCmd = isWindows ? 'py' : 'python3';
+            const pythonArgs = isWindows ? ['-3.11', '-m', 'venv', 'venv'] : ['-m', 'venv', 'venv'];
+            
+            await runStreamedCommand(pythonCmd, pythonArgs, qodoCoverDir, outputChannel);
 
+            // install cover-agent dependencies
             progress.report({ message: "Installing cover-agent dependencies..." });
+            outputChannel.appendLine(`\n[INFO] Installing cover-agent...`);
+            
             const pipCmd = isWindows ? path.join('venv', 'Scripts', 'pip') : path.join('venv', 'bin', 'pip');
-            const { stdout, stderr } = await execAsync(`${pipCmd} install .`, { cwd: qodoCoverDir });
             
-            outputChannel.appendLine(stdout);
-            if (stderr) {outputChannel.appendLine(`[WARN] ${stderr}`);}
+            // pip install -e .
+            await runStreamedCommand(pipCmd, ['install', '-e', '.'], qodoCoverDir, outputChannel);
             
-            outputChannel.appendLine(`[INFO] Extension environment setup complete`);
+            outputChannel.appendLine(`\n[INFO] Extension environment setup complete!`);
             return true;
         } catch (error: any) {
-            vscode.window.showErrorMessage(`Extension Env Error: ${error.message}`);
+            vscode.window.showErrorMessage(`Extension Env Error: Check Output panel for details.`);
+            outputChannel.appendLine(`\n[ERROR] Extension setup failed: ${error.message}`);
             return false;
         }
     });
 }
-
 // Create venv, install pytest and dependencies for the current workspace
 async function setupWorkspaceEnvironment(workspaceRoot: string, outputChannel: vscode.OutputChannel): Promise<boolean> {
     const isWindows = os.platform() === 'win32';
     const venvPath = path.join(workspaceRoot, 'venv');
     const pipCmd = isWindows ? path.join(venvPath, 'Scripts', 'pip') : path.join(venvPath, 'bin', 'pip');
+    const pythonCmd = isWindows ? 'py' : 'python3';
+    const pythonArgs = isWindows ? ['-3.11', '-m', 'venv', 'venv'] : ['-m', 'venv', 'venv'];
+    
+    // marker File
+    const markerPath = path.join(venvPath, '.qodo_env_ready');
+    if (fs.existsSync(venvPath) && fs.existsSync(markerPath)) {
+        outputChannel.appendLine(`[INFO] Workspace environment already configured. Skipping install.`);
+        return true;
+    }
 
     return await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
-        title: "Qodo Plus: Preparing Workspace Environment",
-        cancellable: false
+        title: "Qodo Plus: Preparing Workspace Environment (Check Output Panel)",
+        cancellable: true
     }, async (progress) => {
         try {
-            // Create venv if not exists
+            // show output and logs
+            outputChannel.show(true);
+
+            // create venv if not exist
             if (!fs.existsSync(venvPath)) {
                 outputChannel.appendLine(`[INFO] Creating workspace venv at ${venvPath}`);
-                await execAsync(`${isWindows ? 'py -3' : 'python3'} -m venv venv`, { cwd: workspaceRoot });
+                progress.report({ message: "Creating virtual environment..." });
+                await runStreamedCommand(pythonCmd, pythonArgs, workspaceRoot, outputChannel);
             }
 
-            // install pytest and plugin 
-            progress.report({ message: "Installing testing tools (pytest, pytest-cov)" });
-            outputChannel.appendLine(`[INFO] Installing pytest and pytest-cov...`);
-            await execAsync(`${pipCmd} install pytest pytest-cov pytest-twisted pytest-asyncio`, { cwd: workspaceRoot });
+            // install pytest and tools
+            progress.report({ message: "Installing testing tools..." });
+            outputChannel.appendLine(`[INFO] Installing pytest and tools...`);
+            await runStreamedCommand(pipCmd, [
+                'install',
+                'pytest',
+                'pytest-cov',
+                'pytest-twisted',
+                'pytest-asyncio',
+                'pytest-timeout',
+                'pytest-xdist',
+                'pytest-mock',
+                'twisted'
+            ], workspaceRoot, outputChannel);
 
-            // dependencies 
+            // install dependencies from requirements.txt if exist, otherwise try pip install -e .
             const reqPath = path.join(workspaceRoot, 'requirements.txt');
             if (fs.existsSync(reqPath)) {
-                progress.report({ message: "Installing dependencies from requirements.txt" });
-                outputChannel.appendLine(`[INFO] Found requirements.txt. Installing dependencies`);
-                await execAsync(`${pipCmd} install -r requirements.txt`, { cwd: workspaceRoot });
+                progress.report({ message: "Installing from requirements.txt..." });
+                outputChannel.appendLine(`[INFO] Found requirements.txt. Installing dependencies...`);
+                await runStreamedCommand(pipCmd, ['install', '-r', 'requirements.txt'], workspaceRoot, outputChannel);
             } else {
-                // requirements.txt or pip install .
-                progress.report({ message: "Installing project as a package (pip install .)" });
-                outputChannel.appendLine(`[INFO] No requirements.txt found. Running pip install .`);
+                progress.report({ message: "Running pip install -e ." });
+                outputChannel.appendLine(`[INFO] No requirements.txt found. Running pip install -e .`);
                 try {
-                    await execAsync(`${pipCmd} install .`, { cwd: workspaceRoot });
-                    outputChannel.appendLine(`[INFO] Successfully installed current directory as a package.`);
+                    await runStreamedCommand(pipCmd, ['install', '-e', '.'], workspaceRoot, outputChannel);
                 } catch (installErr: any) {
                     outputChannel.appendLine(`[WARN] 'pip install .' skipped: Directory does not contain a valid package setup.`);
                 }
             }
 
-            outputChannel.appendLine(`[INFO] Workspace environment ready!`);
+            fs.writeFileSync(markerPath, `Setup completed at ${new Date().toISOString()}`);
+
+            outputChannel.appendLine(`\n[INFO] Workspace environment ready!`);
             return true;
         } catch (error: any) {
-            vscode.window.showErrorMessage(`Workspace Env Error: ${error.message}`);
-            outputChannel.appendLine(`[ERROR] Workspace setup failed: ${error.message}`);
+            vscode.window.showErrorMessage(`Workspace Env Error: Check Output channel for details.`);
+            outputChannel.appendLine(`\n[ERROR] Workspace setup failed: ${error.message}`);
             return false;
         }
     });
