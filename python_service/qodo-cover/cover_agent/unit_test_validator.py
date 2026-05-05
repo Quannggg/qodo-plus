@@ -620,6 +620,7 @@ class UnitTestValidator:
             error_message=enhanced_error_message,
             language=self.language,
             test_file_name=self._get_relative_path(self.test_file_path),
+            test_file = self._read_file(self.test_file_path)
         )
 
         try:
@@ -761,6 +762,7 @@ class UnitTestValidator:
             error_message=enhanced_error_message,
             language=self.language,
             test_file_name=self._get_relative_path(self.test_file_path),
+            test_file= self._read_file(self.test_file_path),
             additional_instructions_text= error_message
         )
         

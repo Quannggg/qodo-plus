@@ -42,18 +42,23 @@ I have a unit test written in {{ language }} that is failing. Please fix it base
 ```{{ language }}
 {{ source_file }}
 ```
+### 2. Test File
+Here is the file that contains the existing tests, called `{{ test_file_name }}`:
+=========
+{{ test_file| trim }}
+=========
 
-### 2. The Failing Test Code (Needs Fixing)
+### 3. The Failing Test Code (Needs Fixing)
 ```{{ language }}
 {{ test_code }}
 ```
 
-### 3. Error Message / Traceback
+### 4. Error Message / Traceback
 ```text
 {{ error_message }}
 ```
 
-### 4. Analyze
+### 5. Analyze
 {%- if additional_instructions_text|trim %}
 ## Additional Instructions
 ======
@@ -61,7 +66,7 @@ I have a unit test written in {{ language }} that is failing. Please fix it base
 ======
 {% endif %}
 
-### 5. Task
+### 6. Task
 Analyze the error and rewrite the test code to:
 - Fix all syntax, import, and logic errors
 - Include complete test logic (setup, execution, assertions)

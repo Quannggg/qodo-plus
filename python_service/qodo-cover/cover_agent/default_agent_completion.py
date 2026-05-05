@@ -136,6 +136,7 @@ class DefaultAgentCompletion(AgentCompletionABC):
         error_message: str,
         language: str,
         test_file_name: str,
+        test_file: str,
         additional_instructions_text: str = None,
     ) -> Tuple[str, int, int, str]:
         """
@@ -160,6 +161,7 @@ class DefaultAgentCompletion(AgentCompletionABC):
             error_message=error_message,
             language=language,
             test_file_name=test_file_name,
+            test_file=test_file,
             additional_instructions_text=additional_instructions_text
         )
         response, prompt_tokens, completion_tokens = self.caller.call_model(prompt)

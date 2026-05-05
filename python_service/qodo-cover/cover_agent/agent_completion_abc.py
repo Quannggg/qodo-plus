@@ -59,6 +59,7 @@ class AgentCompletionABC(ABC):
         error_message: str,
         language: str,
         test_file_name: str,
+        test_file: str,
         additional_instructions_text: str = None,
     ) -> Tuple[str, int, int, str]:
         """
