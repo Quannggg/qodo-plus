@@ -2,7 +2,7 @@
 
 Qodo Plus is an AI-powered VS Code extension that automatically generates, refines, and validates test cases for your Python projects. 
 
-Built as an advanced evolution of the original [Qodo Cover](python_service\qodo-cover\README_QODO_COVER.md), Qodo Plus wraps the core test-generation capabilities into a seamless IDE experience and introduces a robust **LLM-driven Self-Healing Engine**.
+Built as an advanced evolution of the original [Qodo Cover](python_service\qodo-cover\README.md), Qodo Plus wraps the core test-generation capabilities into a seamless IDE experience and introduces a robust **LLM-driven Self-Healing Engine**.
 
 ## The Core Development
 
@@ -40,7 +40,7 @@ You can install and run Qodo Plus either by using the pre-packaged extension fil
 ### Option B: Run from Source (For Developers & Reviewers)
 If you want to evaluate the source code, inspect the self-healing logic, or run it in a development environment:
 
-1. **Prerequisites:** Ensure you have [Node.js](https://nodejs.org/) and [Git](https://git-scm.com/) installed.
+1. **Prerequisites:** Ensure you have [Node.js](https://nodejs.org/), [Python](https://www.python.org/) and [Git](https://git-scm.com/) installed.
 2. **Clone the repository:**
     ```bash
     git clone https://github.com/Quannggg/qodo-plus.git
@@ -52,37 +52,32 @@ If you want to evaluate the source code, inspect the self-healing logic, or run 
     ```
 4. **Run the extension in development mode:** Press F5 in VS Code. This will open a new Extension Development Host window where **Qodo Plus** is loaded and ready to test.
 
-## Extension Settings
-
-Before running the extension, configure your AI provider. Open VS Code Settings (Ctrl + ,), search for **Qodo Plus**, and configure the following:
-
-* `qodoPlus.apiKey`: **(Required)** Your AI provider API key (or you can set it as an environment variable).
-* `qodoPlus.model`: Select the AI model to use (default: `deepseek/deepseek-chat`).
-* `qodoPlus.sourceFilePath`: Template for the source file path. Supports placeholders like `{relativeFilePath}`, `{fileName}`, and `{sourceDir}`. (default: `{relativeFilePath}`).
-* `qodoPlus.testFilePath`: Template for the generated test file path. Supports the same placeholders. (default: `tests/test_{fileName}`).
-* `qodoPlus.testCommand`: The command used to execute tests and generate coverage. Supports `{testFilePath}` and `{sourceDir}`. (default: `pytest {testFilePath} --cov={sourceDir} --cov-branch --cov-report=xml --cov-report=html`).
-* `qodoPlus.codeCoverageReportPath`: The path where the coverage report XML will be saved (default: `coverage.xml`).
-* `qodoPlus.coverageType`: The format of the coverage report (default: `cobertura`).
-* `qodoPlus.desiredCoverage`: The target code coverage percentage the AI should aim for, from 0 to 100 (default: `100`).
-* `qodoPlus.maxIterations`: The maximum number of iterations the AI will run to improve tests and coverage (default: `3`).
-* `qodoPlus.maxFixAttempts`: The maximum number of attempts the AI will make to fix failing tests within a single iteration (default: `1`).
-
-
 ## Usage & Demo
 
-Qodo Plus is designed to handle complex, real-world Python projects. It has been successfully tested on 10 open-source python repositories which have the top stars on [GitHub](https://gitstar-ranking.com/repositories)
+Qodo Plus is designed to handle complex, real-world Python projects. It has been successfully tested on 10 open-source python repositories which have the top stars on [GitHub](https://gitstar-ranking.com/repositories).
 
-
-### Step-by-step Execution
+### Step-by-Step Execution
 
 In development mode, you can easily test the extension on any Python project. Follow these steps:
 
 1. **Open a Python project:** Open the root directory of your Python project in VS Code.
-2. **Select a source file:** Open any Python source file you want to generate tests for.
-3. **Run Qodo Plus:** 
+2. **Configure Qodo Plus Settings:** Before generating tests, configure your AI provider and paths. Open VS Code Settings (`Ctrl + ,`), search for **Qodo Plus**, and configure the following parameters:
+    * `Qodo Plus: API Key`: **(Required)** Your AI provider API key (or you can set it as an environment variable).
+    * `Qodo Plus: Model`: Select the AI model to use (default: `deepseek/deepseek-chat`).
+    * `Qodo Plus: Base Url`: Optional custom Base URL for the API. Leave empty to let the system auto-detect based on the model prefix. Only fill this if you are using Local LLMs (like Ollama) or custom Enterprise endpoints. (default: `""`).
+    * `Qodo Plus: Source File Path`: Template for the source file path. Supports placeholders like `{relativeFilePath}`, `{fileName}`, and `{sourceDir}`. (default: `{relativeFilePath}`).
+    * `Qodo Plus: Test File Path`: Template for the generated test file path. Supports the same placeholders. (default: `tests/test_{fileName}`).
+    * `Qodo Plus: Test Command`: The command used to execute tests and generate coverage. Supports `{testFilePath}` and `{sourceDir}`. (default: `venv\\Scripts\\pytest {testFilePath} --cov={sourceDir} --cov-branch --cov-report=xml --cov-report=html`).
+    * `Qodo Plus: Code Coverage Report Path`: The path where the coverage report XML will be saved (default: `coverage.xml`).
+    * `Qodo Plus: Coverage Type`: The format of the coverage report (default: `cobertura`).
+    * `Qodo Plus: Desired Coverage`: The target code coverage percentage the AI should aim for, from 0 to 100 (default: `100`).
+    * `Qodo Plus: Max Iterations`: The maximum number of iterations the AI will run to improve tests and coverage (default: `3`).
+    * `Qodo Plus: Max Fix Attempts`: The maximum number of attempts the AI will make to fix failing tests within a single iteration (default: `1`).
+3. **Select a source file:** Open any Python source file you want to generate tests for.
+4. **Run Qodo Plus:** 
     - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac) to open the Command Palette.
     - Type `Qodo Plus: Generate Tests` and select it.
-4. **Watch the magic happen:** The extension will automatically generate tests, run them, and iteratively improve them based on failures and coverage gaps. You can monitor the output in the VS Code terminal.
+5. **Watch the magic happen:** The extension will automatically generate tests, run them, and iteratively improve them based on failures and coverage gaps. You can monitor the output in the VS Code terminal.
 
 ### Expected Workflow Log (Demonstrating Self-Healing)
 Unlike traditional tools that stop after generating bad code, Qodo Plus actively works to fix it. Notice the loop below:
