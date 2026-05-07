@@ -24,8 +24,8 @@ The original Qodo Cover operates on a **"fire and forget"** mechanism: it genera
 
 Extensive experimental research conducted in 2026 targeting 10 complex open-source Python projects (including [scrapy](https://github.com/scrapy/scrapy), [HanLP](https://github.com/hankcs/hanlp), [tqdm](https://github.com/tqdm/tqdm), [Gymnasium](https://github.com/Farama-Foundation/Gymnasium), [django-rest-framework](https://github.com/encode/django-rest-framework), [pipenv](https://github.com/pypa/pipenv), [locust](https://github.com/locustio/locust), [flask](https://github.com/pallets/flask), [localstack](https://github.com/localstack/localstack) and [openai-python](https://github.com/openai/openai-python)) demonstrated the significant impact of the self-healing architecture. Compared to the baseline Qodo Cover, Qodo Plus consistently delivers:
 
-* **Line Coverage Boost:** Achieves an absolute increase of **8-14%** in total line coverage by successfully salvaging and fixing generated tests that the original tool would have discarded.
-* **Branch Coverage Boost:** Delivers an impressive **12-20%** increase in branch coverage, ensuring that edge cases, conditional statements, and complex logical paths are thoroughly validated by the AI.
+* **Line Coverage Boost:** Achieves an absolute increase of **5-36%** in total line coverage by successfully salvaging and fixing generated tests that the original tool would have discarded.
+* **Branch Coverage Boost:** Delivers an impressive **10-47%** increase in branch coverage, ensuring that edge cases, conditional statements, and complex logical paths are thoroughly validated by the AI.
 
 ## Installation
 
@@ -56,7 +56,7 @@ If you want to evaluate the source code, inspect the self-healing logic, or run 
 
 Before running the extension, configure your AI provider. Open VS Code Settings (Ctrl + ,), search for **Qodo Plus**, and configure the following:
 
-* `qodoPlus.apiKey`: **(Required)** Your AI provider API key.
+* `qodoPlus.apiKey`: **(Required)** Your AI provider API key (or you can set it as an environment variable).
 * `qodoPlus.model`: Select the AI model to use (default: `deepseek/deepseek-chat`).
 * `qodoPlus.sourceFilePath`: Template for the source file path. Supports placeholders like `{relativeFilePath}`, `{fileName}`, and `{sourceDir}`. (default: `{relativeFilePath}`).
 * `qodoPlus.testFilePath`: Template for the generated test file path. Supports the same placeholders. (default: `tests/test_{fileName}`).
