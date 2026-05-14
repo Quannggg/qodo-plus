@@ -2,7 +2,7 @@
   "name": "qodo-plus",
   "displayName": "Qodo Plus",
   "description": "test cases generation",
-  "version": "0.0.7",
+  "version": "0.0.9",
   "engines": {
     "vscode": "^1.109.2"
   },
