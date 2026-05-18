@@ -30,7 +30,7 @@ class UnitTestValidator:
     measurement for a given source file and its corresponding test file.
     """
     
-    DEFAULT_DESIRED_COVERAGE = 90
+    DEFAULT_DESIRED_COVERAGE = 100
     DEFAULT_MAX_FIX_ATTEMPTS = 1
     COVERAGE_PRECISION = 2  # decimal places for coverage percentages
     DEFAULT_TEST_HEADERS_INDENTATION_ATTEMPTS = 3
